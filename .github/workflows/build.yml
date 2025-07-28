@@ -65,7 +65,7 @@ jobs:
           cp .build/release/zmqtt2prom .
           codesign --sign "$APPLE_CERT_CN" --options=runtime --timestamp zmqtt2prom 
           zip zmqtt2prom_macos_arm64.zip zmqtt2prom
-          xcrun notarytool submit zmqtt2prom.zip --apple-id $APPLE_DEVELOPER_USER_ID --team-id $APPLE_DEVELOPER_TEAM_ID --password $APPLE_APP_SPECIFIC_PASSWORD --wait
+          xcrun notarytool submit zmqtt2prom_macos_arm64.zip --apple-id $APPLE_DEVELOPER_USER_ID --team-id $APPLE_DEVELOPER_TEAM_ID --password $APPLE_APP_SPECIFIC_PASSWORD --wait
         env:
           APPLE_DEVELOPER_USER_ID: ${{ secrets.APPLE_DEVELOPER_USER_ID }}
           APPLE_DEVELOPER_TEAM_ID: ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
