@@ -62,16 +62,17 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$APPLE_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
-      - name: Build (macOS ARM64)
+      - name: Build & Test(macOS ARM64)
         if: matrix.os == 'macos-latest'
-        run: swift build -c release --arch arm64
+        run: |
+          swift build -c release --arch arm64
+          swift test ${{ matrix.test-args }}
 
-      - name: Build (linux)
+      - name: Build & Test (linux)
         if: matrix.os == 'ubuntu-latest'
-        run: swift build -c release
-
-      - name: Test
-        run: swift test ${{ matrix.test-args }}
+        run: |
+          swift build -c release
+          swift test ${{ matrix.test-args }}
 
       - name: Sign & Notarize binary
         if: matrix.os == 'macos-latest'
@@ -88,7 +89,9 @@ jobs:
 
       - name: Package (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: zip zmqtt2prom_linux.zip .build/release/zmqtt2prom
+        run: |
+          cp .build/release/zmqtt2prom .
+          zip zmqtt2prom_linux.zip zmqtt2prom
 
       - name: Upload release asset (macOS ARM64)
         if: matrix.os == 'macos-latest'
