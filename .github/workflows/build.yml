@@ -1,0 +1,69 @@
+name: Build macOS (x86 and ARM64)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Swift ${{ matrix.swift }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+        matrix:
+            os: [ubuntu-latest, macos-latest]
+            swift: ["6.1.2"]
+            test-args: [""]
+
+    steps:
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ matrix.swift }}
+
+      - name: Get swift version
+        run: swift --version    
+
+      - name: Check out
+        uses: actions/checkout@v4
+
+    #   - name: Install Apple certificate
+    #     env:
+    #       BUILD_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERT_DATA }}
+    #       P12_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+    #       KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+    #     run: |
+    #       # create certificate file from base64 secret
+    #       CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+    #       KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+    #       echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+
+    #       # create temporary keychain
+    #       security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+    #       security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+    #       security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+    #       # import certificate to keychain
+    #       security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+    #       security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+    #       security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Build
+        run: $SWIFT_PATH/swift build -c release
+      - name: Test
+        run: swift test ${{ matrix.test-args }}
+
+    #   - name: Sign & Notarize binary
+    #     run: |
+    #       cp .build/release/zmqtt2prom .
+    #       codesign --sign "German Berdnikov (U537EV56Z3)" -o runtime --timestamp zmqtt2prom --entitlements Resources/entitlements.plist
+    #       zip zmqtt2prom.zip zmqtt2prom
+    #       xcrun notarytool submit zmqtt2prom.zip --apple-id $APPLE_NOTARY_USER --team-id U537EV56Z3 --password $APPLE_NOTARY_PASSWORD --wait
+    #     env:
+    #       APPLE_NOTARY_USER: ${{ secrets.APPLE_NOTARY_USER }}
+    #       APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+
+    #   - name: Upload artifact
+    #     uses: actions/upload-artifact@v4
+    #     with:
+    #       name: ${{ matrix.arch }}-build
+    #       path: zmqtt2prom.zip
