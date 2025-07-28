@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write  # Required for uploading release assets
+
+jobs:
+  build:
+    name: Swift ${{ matrix.swift }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        swift: ["6.1.0"]
+        test-args: [""]
+
+    steps:
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ matrix.swift }}
+
+      - name: Get swift version
+        run: swift --version    
+
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}  # Ensures checkout of the exact tag from the release
+          
+      - name: Cache SPM dependencies and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-        
+
+      - name: Install Apple certificate
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_SIGNING_CERTIFICATE_BASE64: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          # create certificate file from base64 secret
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$APPLE_SIGNING_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+
+          # create temporary keychain
+          security create-keychain -p "$APPLE_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$APPLE_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$APPLE_SIGNING_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$APPLE_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Build (macOS ARM64)
+        if: matrix.os == 'macos-latest'
+        run: swift build -c release --arch arm64
+
+      - name: Build (linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: swift build -c release
+
+      - name: Test
+        run: swift test ${{ matrix.test-args }}
+
+      - name: Sign & Notarize binary
+        if: matrix.os == 'macos-latest'
+        run: |
+          cp .build/release/zmqtt2prom .
+          codesign --sign "$APPLE_CERT_CN" --options=runtime --timestamp zmqtt2prom 
+          zip zmqtt2prom_macos_arm64.zip zmqtt2prom
+          xcrun notarytool submit zmqtt2prom_macos_arm64.zip --apple-id $APPLE_DEVELOPER_USER_ID --team-id $APPLE_DEVELOPER_TEAM_ID --password $APPLE_APP_SPECIFIC_PASSWORD --wait
+        env:
+          APPLE_DEVELOPER_USER_ID: ${{ secrets.APPLE_DEVELOPER_USER_ID }}
+          APPLE_DEVELOPER_TEAM_ID: ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
+          APPLE_CERT_CN: ${{ secrets.APPLE_CERT_CN }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+      - name: Package (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: zip zmqtt2prom_linux.zip .build/release/zmqtt2prom
+
+      - name: Upload release asset (macOS ARM64)
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}  # References the existing release's upload URL
+          asset_path: zmqtt2prom_macos_arm64.zip
+          asset_name: zmqtt2prom_macos_arm64-${{ github.event.release.tag_name }}.zip
+          asset_content_type: application/zip
+
+      - name: Upload release asset (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}  # References the existing release's upload URL
+          asset_path: zmqtt2prom_linux.zip
+          asset_name: zmqtt2prom_linux-${{ github.event.release.tag_name }}.zip
+          asset_content_type: application/zip

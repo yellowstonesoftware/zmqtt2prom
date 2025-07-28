@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Swift ${{ matrix.swift }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        swift: ["6.1.0"]
+        test-args: [""]
+
+    steps:
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ matrix.swift }}
+
+      - name: Get swift version
+        run: swift --version    
+
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Cache SPM dependencies and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-        
+
+      - name: Build & Test(macOS ARM64)
+        if: matrix.os == 'macos-latest'
+        run: |
+          swift build -c release --arch arm64
+          swift test ${{ matrix.test-args }}
+
+      - name: Build & Test(linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          swift build -c release
+          swift test ${{ matrix.test-args }}

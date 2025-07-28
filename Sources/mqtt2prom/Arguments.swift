@@ -14,7 +14,7 @@ struct ZMQTT2Prom: AsyncParsableCommand {
         subscribes to individual device topics, and transforms the data into Prometheus-compatible
         metrics based on the device expose schemas.
         """,
-        version: "1.0.0"
+        version: "0.0.1"
     )
     
     @Option(name: .long, help: "MQTT broker hostname")
