@@ -1,4 +1,4 @@
-name: Build macOS (x86 and ARM64)
+name: CI/CD workflow
 
 on:
   pull_request:
@@ -10,10 +10,10 @@ jobs:
     name: Swift ${{ matrix.swift }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
-        matrix:
-            os: [ubuntu-latest, macos-latest]
-            swift: ["6.1.0"]
-            test-args: [""]
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        swift: ["6.1.0"]
+        test-args: [""]
 
     steps:
       - uses: swift-actions/setup-swift@v2
@@ -26,44 +26,66 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-    #   - name: Install Apple certificate
-    #     env:
-    #       BUILD_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERT_DATA }}
-    #       P12_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
-    #       KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
-    #     run: |
-    #       # create certificate file from base64 secret
-    #       CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-    #       KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-    #       echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+      - name: Install Apple certificate
+        if: matrix.os == 'macos-latest'
+        env:
+          APPLE_SIGNING_CERTIFICATE_BASE64: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          # create certificate file from base64 secret
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$APPLE_SIGNING_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
 
-    #       # create temporary keychain
-    #       security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-    #       security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-    #       security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          # create temporary keychain
+          security create-keychain -p "$APPLE_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$APPLE_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-    #       # import certificate to keychain
-    #       security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-    #       security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-    #       security list-keychain -d user -s $KEYCHAIN_PATH
+          # import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$APPLE_SIGNING_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$APPLE_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
 
-      - name: Build
-        run: $SWIFT_PATH/swift build -c release
+      - name: Build (macOS ARM64)
+        if: matrix.os == 'macos-latest'
+        run: swift build -c release --arch arm64
+
+      - name: Build (linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: swift build -c release
+
       - name: Test
         run: swift test ${{ matrix.test-args }}
 
-    #   - name: Sign & Notarize binary
-    #     run: |
-    #       cp .build/release/zmqtt2prom .
-    #       codesign --sign "German Berdnikov (U537EV56Z3)" -o runtime --timestamp zmqtt2prom --entitlements Resources/entitlements.plist
-    #       zip zmqtt2prom.zip zmqtt2prom
-    #       xcrun notarytool submit zmqtt2prom.zip --apple-id $APPLE_NOTARY_USER --team-id U537EV56Z3 --password $APPLE_NOTARY_PASSWORD --wait
-    #     env:
-    #       APPLE_NOTARY_USER: ${{ secrets.APPLE_NOTARY_USER }}
-    #       APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+      - name: Sign & Notarize binary
+        if: matrix.os == 'macos-latest'
+        run: |
+          cp .build/release/zmqtt2prom .
+          codesign --sign "$APPLE_CERT_CN" --options=runtime --timestamp zmqtt2prom 
+          zip zmqtt2prom_macos_arm64.zip zmqtt2prom
+          xcrun notarytool submit zmqtt2prom.zip --apple-id $APPLE_DEVELOPER_USER_ID --team-id $APPLE_DEVELOPER_TEAM_ID --password $APPLE_APP_SPECIFIC_PASSWORD --wait
+        env:
+          APPLE_DEVELOPER_USER_ID: ${{ secrets.APPLE_DEVELOPER_USER_ID }}
+          APPLE_DEVELOPER_TEAM_ID: ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
+          APPLE_CERT_CN: ${{ secrets.APPLE_CERT_CN }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
-    #   - name: Upload artifact
-    #     uses: actions/upload-artifact@v4
-    #     with:
-    #       name: ${{ matrix.arch }}-build
-    #       path: zmqtt2prom.zip
+      - name: Package (Linux)
+        if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/main'
+        run: zip zmqtt2prom_linux.zip .build/release/zmqtt2prom
+
+      - name: Upload artifact (macOS ARM64)
+        if: matrix.os == 'macos-latest' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arch }}-build
+          path: zmqtt2prom_macos_arm64.zip
+
+      - name: Upload artifact (linux)
+        if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arch }}-build
+          path: zmqtt2prom_linux.zip            
