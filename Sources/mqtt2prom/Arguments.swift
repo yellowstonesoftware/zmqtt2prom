@@ -14,14 +14,14 @@ struct ZMQTT2Prom: AsyncParsableCommand {
         subscribes to individual device topics, and transforms the data into Prometheus-compatible
         metrics based on the device expose schemas.
         """,
-        version: "0.0.3"
+        version: "__version__"
     )
     
     @Option(name: .long, help: "MQTT broker hostname")
-    var mqttHost: String = "localhost"
+    var mqttHost: String?
     
     @Option(name: .long, help: "MQTT broker port")
-    var mqttPort: Int = 1883
+    var mqttPort: Int?
     
     @Option(name: .long, help: "MQTT username (optional)")
     var mqttUsername: String?
@@ -40,7 +40,7 @@ struct ZMQTT2Prom: AsyncParsableCommand {
     
     /// Validate arguments
     mutating func validate() throws {
-        if mqttPort < 1 || mqttPort > 65535 {
+        if mqttPort != nil && (mqttPort! < 1 || mqttPort! > 65535) {
             throw ValidationError("MQTT port must be between 1 and 65535")
         }
         
@@ -57,11 +57,11 @@ struct ZMQTT2Prom: AsyncParsableCommand {
     /// Convert to configuration objects
     var mqttConfig: MQTTConfig {
         MQTTConfig(
-            host: mqttHost,
-            port: mqttPort,
-            username: mqttUsername,
-            password: mqttPassword,
-            useTLS: mqttTls
+            host: mqttHost ?? ProcessInfo.processInfo.environment["Z2P_MQTT_HOST"] ?? "localhost",
+            port: mqttPort ?? Int(ProcessInfo.processInfo.environment["Z2P_MQTT_PORT"] ?? "1883") ?? 1883,
+            username: mqttUsername ?? ProcessInfo.processInfo.environment["Z2P_MQTT_USERNAME"],
+            password: mqttPassword ?? ProcessInfo.processInfo.environment["Z2P_MQTT_PASSWORD"],
+            useTLS: mqttTls || ((ProcessInfo.processInfo.environment["Z2P_MQTT_TLS"] ?? "false") == "true")
         )
     }
     
@@ -75,7 +75,7 @@ struct ZMQTT2Prom: AsyncParsableCommand {
         
         let logger = Logger(label: ".main")
         logger.info("Starting zmqtt2prom")
-        logger.info("MQTT: \(mqttHost):\(mqttPort)")
+        logger.info("MQTT: \(mqttConfig.host):\(mqttConfig.port)")
         logger.info("HTTP: 0.0.0.0:\(httpPort)")
         
         let app = ZMQTT2PromApplication(
