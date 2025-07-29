@@ -2,6 +2,7 @@
 FROM swift:latest AS builder
 WORKDIR /app
 
+COPY .build .build
 COPY . .
 
 RUN swift build -c release

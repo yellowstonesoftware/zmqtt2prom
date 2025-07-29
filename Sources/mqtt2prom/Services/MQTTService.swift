@@ -32,6 +32,7 @@ struct MQTTService {
     private let metricsManager: MetricsManager
     private let client: MQTTClient
     private let deviceRegistry: DeviceRegistry
+    private let baseTopicName = "zigbee2mqtt/"
 
     init(
         config: MQTTConfig,
@@ -82,20 +83,19 @@ struct MQTTService {
             if client.isActive() { 
                 client.removeCloseListener(named: MQTTListenerName.connectionClosed.rawValue)
                 try await client.disconnect().get() 
+                logger.debug("MQTTClient disconnected successfully")
             }
-            logger.debug("MQTTClient disconnected successfully")
             try client.syncShutdownGracefully()
-            logger.debug("MQTTClient shut down successfully")
+            logger.debug("MQTTClient event loop group shut down successfully")
         } catch {
             logger.error("Error disconnecting from MQTT: \(error)")
         }
         
-            do {
-            logger.debug("Shutting down MQTT event loop group synchronously")
+        do {
             try await eventLoopGroup.shutdownGracefully()
-            logger.debug("MQTT event loop group shutdown successfully")
+            logger.debug("MQTTService event loop group shutdown successfully")
         } catch {
-            logger.error("Error shutting down MQTT event loop group: \(error)")
+            logger.error("Error shutting down MQTTService event loop group: \(error)")
         }
     }
     
@@ -123,13 +123,21 @@ struct MQTTService {
     private func handleMessage(_ result: Result<MQTTPublishInfo, Error>) async {
         switch result {
         case .success(let publishInfo):
-            let topic = publishInfo.topicName
-            
-            if topic == "zigbee2mqtt/bridge/devices" {
+    
+            guard publishInfo.topicName.hasPrefix(baseTopicName) else { return }
+            let topicNameSuffix = publishInfo.topicName.dropFirst(baseTopicName.count)
+
+            switch topicNameSuffix {
+            case "bridge/devices":
                 await handleDeviceDiscoveryMessage(publishInfo.payload)
-            } else if topic.hasPrefix("zigbee2mqtt/") && !topic.hasPrefix("zigbee2mqtt/bridge/") {
-                let deviceName = String(topic.dropFirst("zigbee2mqtt/".count))
-                await handleDeviceMessage(deviceName: deviceName, payload: publishInfo.payload)
+
+            /// zigbee2mqtt/<friendlyName>
+            case let others where !others.hasPrefix("bridge/"):
+                await handleDeviceMessage(deviceName: String(topicNameSuffix), payload: publishInfo.payload)
+
+            default:
+                logger.warning("Unhandled topic: \(publishInfo.topicName)")
+                break
             }
 
         case .failure(let error):
