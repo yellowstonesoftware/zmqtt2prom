@@ -17,6 +17,20 @@ See `--help` for options but typical usage would be something like this:
 zmqtt2prom --mqtt-host mqtt.home.com --mqtt-username myusername --mqtt-password mypassword --log-level info
 ```
 
+Building with docker
+
+```
+# Build the Docker image
+docker build -t zmqtt2prom:latest .
+```
+
+Running with docker
+
+```
+docker run --rm -it zmqtt2prom:latest  --mqtt-host mqtt.home.com --mqtt-username myusername --mqtt-password mypassword --log-level info
+
+```
+
 The following labels are added to the metrics (prefix: `mqtt2prom`):
 
 * friendly_name
