@@ -27,7 +27,7 @@ docker build -t zmqtt2prom:latest .
 Running with docker
 
 ```
-docker run --rm -it zmqtt2prom:latest  --mqtt-host mqtt.home.com --mqtt-username myusername --mqtt-password mypassword --log-level info
+docker run --rm -it  -n zmqtt2prom -p 8080:8080 zmqtt2prom:latest  --mqtt-host mqtt.home.com --mqtt-username myusername --mqtt-password mypassword --log-level info
 
 ```
 
