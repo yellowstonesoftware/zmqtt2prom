@@ -124,8 +124,14 @@ jobs:
   docker:
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-latest-arm64]
-
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+            platform: linux/amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            platform: linux/arm64
+            
     runs-on: ${{ matrix.os }}
     needs: build
     steps:
