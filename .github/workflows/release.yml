@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-15]
         swift: ["6.1.0"]
         test-args: [""]
 
@@ -41,7 +41,7 @@ jobs:
             ${{ runner.os }}-spm-        
 
       - name: Install Apple certificate
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-15'
         env:
           APPLE_SIGNING_CERTIFICATE_BASE64: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
           APPLE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
@@ -63,7 +63,7 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
       - name: Build & Test(macOS ARM64)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-15'
         run: |
           echo "Updating version to ${{ github.ref_name }} in Arguments.swift"
           sed -i '' "s/__version__/${{ github.ref_name }}/" Sources/mqtt2prom/Arguments.swift
@@ -81,7 +81,7 @@ jobs:
           swift test ${{ matrix.test-args }}
 
       - name: Sign & Notarize binary
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-15'
         run: |
           cp .build/release/zmqtt2prom .
           codesign --sign "$APPLE_CERT_CN" --options=runtime --timestamp zmqtt2prom 
@@ -100,7 +100,7 @@ jobs:
           zip zmqtt2prom_linux.zip zmqtt2prom
 
       - name: Upload release asset (macOS ARM64)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-15'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -197,5 +197,3 @@ jobs:
             --tag yellowstonesoftware/zmqtt2prom:${{ github.ref_name }} --tag yellowstonesoftware/zmqtt2prom:latest \
             yellowstonesoftware/zmqtt2prom@${AMD64_DIGEST} \
             yellowstonesoftware/zmqtt2prom@${ARM64_DIGEST}
-
-          #docker push -a yellowstonesoftware/zmqtt2prom

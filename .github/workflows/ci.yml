@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-15]
         swift: ["6.1.0"]
         test-args: [""]
 
@@ -37,7 +37,7 @@ jobs:
             ${{ runner.os }}-spm-        
 
       - name: Build & Test(macOS ARM64)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-15'
         run: |
           swift build -c release --arch arm64
           swift test ${{ matrix.test-args }}
