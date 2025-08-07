@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+    paths-ignore:
+      - 'README.md'  
+      - 'Dockerfile'
+      - 'docker-compose.yml'
 
 jobs:
   build:
@@ -12,11 +16,11 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-15]
-        swift: ["6.1.0"]
+        swift: ["6.1.2"]
         test-args: [""]
 
     steps:
-      - uses: yellowstonesoftware/setup-swift@v2.4.0  
+      - uses: SwiftyLab/setup-swift@latest
         with:
           swift-version: ${{ matrix.swift }}
 
