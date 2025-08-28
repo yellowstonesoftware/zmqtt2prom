@@ -218,7 +218,8 @@ final class zmqtt2promTests: XCTestCase {
             port: 1883,
             username: "testuser",
             password: "testpass",
-            useTLS: true
+            useTLS: true,
+			caCert: nil
         )
         
         XCTAssertEqual(config.host, "broker.example.com")
