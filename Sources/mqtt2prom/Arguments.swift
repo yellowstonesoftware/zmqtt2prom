@@ -32,6 +32,9 @@ struct ZMQTT2Prom: AsyncParsableCommand {
     @Flag(name: .long, help: "Use TLS for MQTT connection")
     var mqttTls: Bool = false
     
+    @Option(name: .long, help: "Path to CA certificate file for TLS verification")
+    var caCert: String?
+    
     @Option(name: .long, help: "HTTP server port for /metrics endpoint")
     var httpPort: Int = 8080
     
@@ -61,7 +64,8 @@ struct ZMQTT2Prom: AsyncParsableCommand {
             port: mqttPort ?? Int(ProcessInfo.processInfo.environment["Z2P_MQTT_PORT"] ?? "1883") ?? 1883,
             username: mqttUsername ?? ProcessInfo.processInfo.environment["Z2P_MQTT_USERNAME"],
             password: mqttPassword ?? ProcessInfo.processInfo.environment["Z2P_MQTT_PASSWORD"],
-            useTLS: mqttTls || ((ProcessInfo.processInfo.environment["Z2P_MQTT_TLS"] ?? "false") == "true")
+            useTLS: mqttTls || ((ProcessInfo.processInfo.environment["Z2P_MQTT_TLS"] ?? "false") == "true"),
+            caCert: caCert ?? ProcessInfo.processInfo.environment["Z2P_MQTT_CACERT"]
         )
     }
     

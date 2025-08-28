@@ -3,6 +3,7 @@ import Logging
 import MQTTNIO
 import NIOCore
 import NIOPosix
+import NIOSSL
 
 actor DeviceRegistry { 
     private var registry: [String: DeviceInfo] = [:]
@@ -26,7 +27,7 @@ enum MQTTListenerName: String {
 }
 
 struct MQTTService {
-    private let logger = Logger(label: "zmqtt2prom.mqtt")
+	private let logger: Logger
     private let config: MQTTConfig
     private let eventLoopGroup: EventLoopGroup
     private let metricsManager: MetricsManager
@@ -38,15 +39,39 @@ struct MQTTService {
         config: MQTTConfig,
         metricsManager: MetricsManager,
     ) {
+		self.logger = Logger(label: "zmqtt2prom.mqtt")
         self.config = config
         self.metricsManager = metricsManager
         self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 2)
+		
+		let configuration: MQTTClient.Configuration
+		if config.useTLS {
+			var tlsConfig = TLSConfiguration.makeClientConfiguration()
+			
+			if let caCertPath = config.caCert {
+				do {
+					let caCert = try NIOSSLCertificate.fromPEMFile(caCertPath)
+					tlsConfig.trustRoots = .certificates(try NIOSSLCertificate.fromPEMFile(caCertPath))
+				} catch {
+					self.logger.error("Failed to load CA certificate from \(caCertPath): \(error)")
+				}
+			}
+			
+			configuration = MQTTClient.Configuration(
+				useSSL: true,
+				tlsConfiguration: MQTTClient.TLSConfigurationType.niossl(tlsConfig)
+			)
+		} else {
+			configuration = MQTTClient.Configuration()
+		}
+		
         self.client = MQTTClient(
             host: config.host,
             port: config.port,
             identifier: "zmqtt2prom-\(UUID().uuidString)",
             eventLoopGroupProvider: .shared(eventLoopGroup),
-            logger: logger
+            logger: self.logger,
+			configuration: configuration
         )
         self.deviceRegistry = DeviceRegistry()
     }
@@ -232,6 +257,7 @@ struct MQTTConfig: Sendable {
     let username: String?
     let password: String?
     let useTLS: Bool
+    let caCert: String?
 }
 
 enum MQTTError: Error {
