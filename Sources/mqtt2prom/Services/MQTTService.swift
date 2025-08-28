@@ -50,7 +50,6 @@ struct MQTTService {
 			
 			if let caCertPath = config.caCert {
 				do {
-					let caCert = try NIOSSLCertificate.fromPEMFile(caCertPath)
 					tlsConfig.trustRoots = .certificates(try NIOSSLCertificate.fromPEMFile(caCertPath))
 				} catch {
 					self.logger.error("Failed to load CA certificate from \(caCertPath): \(error)")
