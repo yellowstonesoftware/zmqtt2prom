@@ -173,7 +173,6 @@ struct MQTTService {
   }
 
   private func handleMessage(_ result: Result<MQTTPublishInfo, Error>) async {
-    logger.debug("handling message!!")
     switch result {
     case .success(let publishInfo):
 
