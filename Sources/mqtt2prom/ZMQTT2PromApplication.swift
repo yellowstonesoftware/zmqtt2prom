@@ -36,6 +36,7 @@ actor ZMQTT2PromApplication {
 
     do {
       try await mqttService.connect()
+      try await mqttService.discoverDevices(registerPublishListener: true)
       logger.info("MQTT connected, starting HTTP server")
 
       let app = try await buildApplication(registry: metricsManager.registry)
