@@ -91,10 +91,42 @@ struct MQTTService {
       }
       logger.info("Connected to MQTT broker (clean session: \(previousSessionRestored))")
 
-      try await discoverDevices()
+      client.addCloseListener(named: MQTTListenerName.connectionClosed.rawValue) { result in
+        Task {
+          while (try? await self.reconnect()) == nil {
+            logger.warning("trying to reconnect to MQTT broker, result: \(result) \(client.isActive())")
+            try? await Task.sleep(for: .seconds(2))
+          }
+          logger.info("reconnected to MQTT broker")
+          // we need to create another subscription as we connect with a clean session (subscriptions are per session)
+          try await discoverDevices(registerPublishListener: false)
+        }
+      }
     } catch {
       logger.error("Failed to connect to MQTT broker: \(error)")
       await disconnect()
+
+      throw MQTTError.connectionFailed(error)
+    }
+  }
+
+  func reconnect() async throws {
+    logger.info("Reconnecting to MQTT broker at \(config.host):\(config.port)")
+
+    do {
+      let previousSessionRestored: Bool
+      if let username = config.username {
+        let connectConfig = MQTTClient.ConnectConfiguration(
+          userName: username,
+          password: config.password
+        )
+        previousSessionRestored = try await client.connect(cleanSession: true, connectConfiguration: connectConfig)
+      } else {
+        previousSessionRestored = try await client.connect(cleanSession: true)
+      }
+      logger.info("Connected to MQTT broker (clean session: \(previousSessionRestored))")
+    } catch {
+      logger.error("Failed to connect to MQTT broker: \(error)")
 
       throw MQTTError.connectionFailed(error)
     }
@@ -112,7 +144,7 @@ struct MQTTService {
       try client.syncShutdownGracefully()
       logger.debug("MQTTClient event loop group shut down successfully")
     } catch {
-      logger.error("Error disconnecting from MQTT: \(error)")
+      logger.error("Error disconnecting from MQTT, error: \(error)")
     }
 
     do {
@@ -123,7 +155,7 @@ struct MQTTService {
     }
   }
 
-  private func discoverDevices() async throws {
+  func discoverDevices(registerPublishListener: Bool) async throws {
     guard client.isActive() else { throw MQTTError.notConnected }
 
     logger.info("Subscribing to zigbee2mqtt/bridge/devices topic for device discovery")
@@ -131,15 +163,11 @@ struct MQTTService {
     let subscribeInfo = MQTTSubscribeInfo(topicFilter: "zigbee2mqtt/bridge/devices", qos: .atMostOnce)
     _ = try await client.subscribe(to: [subscribeInfo])
 
-    client.addCloseListener(named: MQTTListenerName.connectionClosed.rawValue) { result in
-      Task {
-        logger.warning("trying to reconnect to MQTT broker...")
-        try? await self.connect()
-      }
-    }
-    client.addPublishListener(named: MQTTListenerName.deviceDiscovery.rawValue) { result in
-      Task {
-        await self.handleMessage(result)
+    if registerPublishListener {
+      client.addPublishListener(named: MQTTListenerName.deviceDiscovery.rawValue) { result in
+        Task {
+          await self.handleMessage(result)
+        }
       }
     }
   }
