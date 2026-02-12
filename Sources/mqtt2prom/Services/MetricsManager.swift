@@ -33,7 +33,6 @@ actor MetricsManager {
         ("friendly_name", device.friendlyName),
         ("manufacturer", device.manufacturer ?? "none"),
         ("ieee_address", device.ieeeAddress),
-        ("network_address", String(device.networkAddress)),
         ("model_id", device.modelId ?? "none"),
         ("type", device.type),
         ("property", expose.property),
@@ -46,7 +45,7 @@ actor MetricsManager {
       case .numeric:
         guard let numericValue = asDouble(value) else {
           logger.warning("Failed to extract numeric value from \(value) for property \(expose.property)")
-          return
+          continue
         }
         gauge.set(numericValue)
 

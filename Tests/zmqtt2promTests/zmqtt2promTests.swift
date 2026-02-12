@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 
 @testable import zmqtt2prom
@@ -209,6 +210,85 @@ final class zmqtt2promTests: XCTestCase {
     XCTAssertNotNil(device.definition)
     XCTAssertEqual(device.definition?.exposes.count, 1)
     XCTAssertEqual(device.definition?.exposes.first?.type, .numeric)
+  }
+
+  // MARK: - MetricsManager Tests
+
+  func testProcessPayloadContinuesAfterNullNumericValue() async throws {
+    let manager = MetricsManager()
+
+    let device = Device(
+      disabled: false,
+      friendlyName: "Test Sensor",
+      ieeeAddress: "0x123456789abcdef0",
+      interviewCompleted: true,
+      manufacturer: "TestCorp",
+      modelId: "TEST01",
+      networkAddress: 12345,
+      supported: true,
+      type: "EndDevice",
+      definition: nil
+    )
+
+    let exposes = [
+      FlattenedExpose(
+        expose: Expose(
+          type: .numeric,
+          property: "countdown",
+          name: "Countdown",
+          unit: nil,
+          access: nil,
+          category: nil,
+          description: nil,
+          features: nil,
+          valueOn: nil,
+          valueOff: nil,
+          values: nil,
+          valueMin: nil,
+          valueMax: nil,
+          valueStep: nil
+        )
+      ),
+      FlattenedExpose(
+        expose: Expose(
+          type: .numeric,
+          property: "temperature",
+          name: "Temperature",
+          unit: "°C",
+          access: nil,
+          category: nil,
+          description: nil,
+          features: nil,
+          valueOn: nil,
+          valueOff: nil,
+          values: nil,
+          valueMin: nil,
+          valueMax: nil,
+          valueStep: nil
+        )
+      ),
+    ]
+
+    let deviceInfo = DeviceInfo(device: device, exposes: exposes)
+
+    // NSNull represents a JSON null value — this is what triggers
+    // "Failed to extract numeric value from <null> for property countdown"
+    let payload: [String: Any] = [
+      "countdown": NSNull(),
+      "temperature": 22.5,
+    ]
+
+    await manager.processPayload(payload, for: deviceInfo)
+
+    // Emit metrics and verify the temperature gauge was set despite countdown being null
+    var buffer = [UInt8]()
+    await manager.registry.emit(into: &buffer)
+    let output = String(decoding: buffer, as: UTF8.self)
+
+    XCTAssertTrue(
+      output.contains("22.5"),
+      "Temperature gauge should have been set even though countdown was null. Output: \(output)"
+    )
   }
 
   // MARK: - MQTT Config Tests
