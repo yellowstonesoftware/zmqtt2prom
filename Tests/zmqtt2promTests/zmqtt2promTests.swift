@@ -100,6 +100,88 @@ final class zmqtt2promTests: XCTestCase {
     XCTAssertFalse(compositeExpose.shouldMonitor)
   }
 
+  func testExposeWriteOnlyShouldNotMonitor() throws {
+    // access: 2 = write-only (not published by device)
+    let writeOnlyExpose = Expose(
+      type: .numeric,
+      property: "inching_time",
+      name: "Inching time",
+      unit: "seconds",
+      access: 2,
+      category: nil,
+      description: nil,
+      features: nil,
+      valueOn: nil,
+      valueOff: nil,
+      values: nil,
+      valueMin: nil,
+      valueMax: nil,
+      valueStep: nil
+    )
+
+    XCTAssertFalse(writeOnlyExpose.shouldMonitor)
+
+    // access: 1 = read (published by device)
+    let readableExpose = Expose(
+      type: .numeric,
+      property: "temperature",
+      name: "Temperature",
+      unit: "°C",
+      access: 1,
+      category: nil,
+      description: nil,
+      features: nil,
+      valueOn: nil,
+      valueOff: nil,
+      values: nil,
+      valueMin: nil,
+      valueMax: nil,
+      valueStep: nil
+    )
+
+    XCTAssertTrue(readableExpose.shouldMonitor)
+
+    // access: 7 = read + write + get (should still be monitored since it's readable)
+    let readWriteExpose = Expose(
+      type: .numeric,
+      property: "brightness",
+      name: "Brightness",
+      unit: "%",
+      access: 7,
+      category: nil,
+      description: nil,
+      features: nil,
+      valueOn: nil,
+      valueOff: nil,
+      values: nil,
+      valueMin: nil,
+      valueMax: nil,
+      valueStep: nil
+    )
+
+    XCTAssertTrue(readWriteExpose.shouldMonitor)
+
+    // access: nil should default to monitoring (backwards compatibility)
+    let noAccessExpose = Expose(
+      type: .numeric,
+      property: "power",
+      name: "Power",
+      unit: "W",
+      access: nil,
+      category: nil,
+      description: nil,
+      features: nil,
+      valueOn: nil,
+      valueOff: nil,
+      values: nil,
+      valueMin: nil,
+      valueMax: nil,
+      valueStep: nil
+    )
+
+    XCTAssertTrue(noAccessExpose.shouldMonitor)
+  }
+
   // MARK: - Flattened Expose Tests
 
   func testExposeFlattening() throws {
