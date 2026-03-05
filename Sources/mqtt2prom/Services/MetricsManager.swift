@@ -18,8 +18,10 @@ actor MetricsManager {
   ) {
     logger.trace("Processing payload [\(payload)] for device \(deviceInfo.device.friendlyName)")
 
+    let flattenedPayload = PayloadFlattener.flatten(payload)
+
     for expose in deviceInfo.exposes {
-      guard let value = payload[expose.property] else {
+      guard let value = flattenedPayload[expose.property] else {
         logger.warning("No value for property \(expose.property) for device \(deviceInfo.device.friendlyName)")
         continue
       }
