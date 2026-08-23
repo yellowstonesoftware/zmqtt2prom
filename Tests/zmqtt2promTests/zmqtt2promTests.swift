@@ -100,6 +100,88 @@ final class zmqtt2promTests: XCTestCase {
     XCTAssertFalse(compositeExpose.shouldMonitor)
   }
 
+  func testExposeWriteOnlyShouldNotMonitor() throws {
+    // access: 2 = write-only (not published by device)
+    let writeOnlyExpose = Expose(
+      type: .numeric,
+      property: "inching_time",
+      name: "Inching time",
+      unit: "seconds",
+      access: 2,
+      category: nil,
+      description: nil,
+      features: nil,
+      valueOn: nil,
+      valueOff: nil,
+      values: nil,
+      valueMin: nil,
+      valueMax: nil,
+      valueStep: nil
+    )
+
+    XCTAssertFalse(writeOnlyExpose.shouldMonitor)
+
+    // access: 1 = read (published by device)
+    let readableExpose = Expose(
+      type: .numeric,
+      property: "temperature",
+      name: "Temperature",
+      unit: "°C",
+      access: 1,
+      category: nil,
+      description: nil,
+      features: nil,
+      valueOn: nil,
+      valueOff: nil,
+      values: nil,
+      valueMin: nil,
+      valueMax: nil,
+      valueStep: nil
+    )
+
+    XCTAssertTrue(readableExpose.shouldMonitor)
+
+    // access: 7 = read + write + get (should still be monitored since it's readable)
+    let readWriteExpose = Expose(
+      type: .numeric,
+      property: "brightness",
+      name: "Brightness",
+      unit: "%",
+      access: 7,
+      category: nil,
+      description: nil,
+      features: nil,
+      valueOn: nil,
+      valueOff: nil,
+      values: nil,
+      valueMin: nil,
+      valueMax: nil,
+      valueStep: nil
+    )
+
+    XCTAssertTrue(readWriteExpose.shouldMonitor)
+
+    // access: nil should default to monitoring (backwards compatibility)
+    let noAccessExpose = Expose(
+      type: .numeric,
+      property: "power",
+      name: "Power",
+      unit: "W",
+      access: nil,
+      category: nil,
+      description: nil,
+      features: nil,
+      valueOn: nil,
+      valueOff: nil,
+      values: nil,
+      valueMin: nil,
+      valueMax: nil,
+      valueStep: nil
+    )
+
+    XCTAssertTrue(noAccessExpose.shouldMonitor)
+  }
+
   // MARK: - Flattened Expose Tests
 
   func testExposeFlattening() throws {
@@ -288,6 +370,94 @@ final class zmqtt2promTests: XCTestCase {
     XCTAssertTrue(
       output.contains("22.5"),
       "Temperature gauge should have been set even though countdown was null. Output: \(output)"
+    )
+  }
+
+  // MARK: - Nested Payload Tests
+
+  func testProcessPayloadWithNestedProperties() async throws {
+    let manager = MetricsManager()
+
+    let device = Device(
+      disabled: false,
+      friendlyName: "Test Device",
+      ieeeAddress: "0x123456789abcdef0",
+      interviewCompleted: true,
+      manufacturer: "TestCorp",
+      modelId: "TEST01",
+      networkAddress: 12345,
+      supported: true,
+      type: "EndDevice",
+      definition: nil
+    )
+
+    // Create exposes that match what ExposeFlattener would produce
+    // for a composite "overload_protection" with nested "min_current"
+    let exposes = [
+      FlattenedExpose(
+        expose: Expose(
+          type: .numeric,
+          property: "min_current",
+          name: "Min current",
+          unit: "A",
+          access: nil,
+          category: nil,
+          description: nil,
+          features: nil,
+          valueOn: nil,
+          valueOff: nil,
+          values: nil,
+          valueMin: nil,
+          valueMax: nil,
+          valueStep: nil
+        ),
+        propertyPath: "overload_protection"
+      ),
+      FlattenedExpose(
+        expose: Expose(
+          type: .numeric,
+          property: "current",
+          name: "Current",
+          unit: "A",
+          access: nil,
+          category: nil,
+          description: nil,
+          features: nil,
+          valueOn: nil,
+          valueOff: nil,
+          values: nil,
+          valueMin: nil,
+          valueMax: nil,
+          valueStep: nil
+        )
+      ),
+    ]
+
+    let deviceInfo = DeviceInfo(device: device, exposes: exposes)
+
+    // This is the actual payload structure from zigbee2mqtt - nested!
+    let payload: [String: Any] = [
+      "current": 0.47,
+      "overload_protection": [
+        "min_current": 0.5,
+        "max_current": 17.0,
+      ] as [String: Any],
+    ]
+
+    await manager.processPayload(payload, for: deviceInfo)
+
+    var buffer = [UInt8]()
+    await manager.registry.emit(into: &buffer)
+    let output = String(decoding: buffer, as: UTF8.self)
+
+    // Both the top-level current and nested overload_protection_min_current should be captured
+    XCTAssertTrue(
+      output.contains("0.47"),
+      "Top-level current should be captured. Output: \(output)"
+    )
+    XCTAssertTrue(
+      output.contains("0.5"),
+      "Nested overload_protection_min_current should be captured. Output: \(output)"
     )
   }
 

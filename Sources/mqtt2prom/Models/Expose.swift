@@ -46,14 +46,25 @@ struct Expose: Codable, Sendable {
     case valueStep = "value_step"
   }
 
-  /// Check if this expose type should be monitored
-  var shouldMonitor: Bool {
+  /// Check if this expose type is a generic (non-composite) type
+  var isGeneric: Bool {
     switch type {
     case .binary, .numeric, .`enum`, .text:
       return true
     case .composite, .`switch`, .light, .climate, .cover, .fan, .lock:
       return false
     }
+  }
+
+  /// Check if this expose can be found in the published state of the device
+  var isPublished: Bool {
+    guard let access = access else { return true }
+    return (access & 1) != 0
+  }
+
+  /// Check if this expose should be monitored
+  var shouldMonitor: Bool {
+    isGeneric && isPublished
   }
 }
 
