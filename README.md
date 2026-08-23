@@ -15,16 +15,55 @@ On startup, the service will auto discover devices that are:
 
 ## Prometheus
 
-The following labels are added to the metrics (prefix: `mqtt2prom_(gauge|counter)`):
+### Metrics
 
-* friendly_name
-* manufacturer
-* ieee_address
-* network_address
-* model_id
-* type
-* property
-* unit
+| Metric | Labels | Meaning |
+| --- | --- | --- |
+| `mqtt2prom_gauge` | `friendly_name`, `manufacturer`, `ieee_address`, `model_id`, `type`, `property`, `unit` | One series per device property, for numeric and binary exposes |
+| `mqtt2prom_device_info` | `friendly_name`, `manufacturer`, `ieee_address`, `model_id`, `type` | Always `1`. One per discovered device |
+| `mqtt2prom_device_last_message_timestamp_seconds` | `friendly_name`, `ieee_address` | When a message from this device was last received |
+| `mqtt2prom_mqtt_connected` | — | `1` while the MQTT session is up |
+
+### Monitoring your monitoring
+
+Two behaviours are worth understanding before you write alerting rules against this
+exporter, because both make the obvious rule wrong.
+
+**Readings do not expire.** A device that stops reporting keeps its last value
+exported at every scrape, indefinitely. That is usually what you want on a dashboard,
+but it means `absent()` and staleness rules can never detect a dead sensor — a water
+leak sensor whose battery dies keeps reporting "dry" forever. Use the message
+timestamp instead:
+
+```promql
+# A device that has not been heard from in six hours
+time() - mqtt2prom_device_last_message_timestamp_seconds > 6 * 3600
+```
+
+**Event-driven devices have no series until triggered.** IAS Zone devices — water
+leak, contact and motion sensors — transmit only on state change, so a newly paired
+one produces no `mqtt2prom_gauge` at all until something physically sets it off. It is
+invisible rather than idle. `mqtt2prom_device_info` is published at discovery, so:
+
+```promql
+# Known to Zigbee2MQTT but has never sent a message
+mqtt2prom_device_info unless on (ieee_address) mqtt2prom_device_last_message_timestamp_seconds
+```
+
+Also note that `up` on this exporter's scrape target is not a health signal: the HTTP
+server keeps serving cached gauges after the broker connection drops. Alert on
+`mqtt2prom_mqtt_connected == 0` instead.
+
+### Renames
+
+`friendly_name` is a label, so renaming a device in Zigbee2MQTT produces a new label
+set. The old one is unregistered when the rename is seen, on the next `bridge/devices`
+message or the device's next reading — whichever arrives first. Devices removed from
+the network have all their series dropped at the next discovery.
+
+This is a behaviour change: before, a renamed device kept exporting its previous name
+frozen at its last value forever. If you were relying on that persistence, note that
+it also made staleness detection impossible.
 
 ## Usage
 

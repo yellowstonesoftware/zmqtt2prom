@@ -90,9 +90,11 @@ struct MQTTService {
         previousSessionRestored = try await client.connect(cleanSession: true)
       }
       logger.info("Connected to MQTT broker (clean session: \(previousSessionRestored))")
+      await metricsManager.setMQTTConnected(true)
 
       client.addCloseListener(named: MQTTListenerName.connectionClosed.rawValue) { result in
         Task {
+          await self.metricsManager.setMQTTConnected(false)
           while (try? await self.reconnect()) == nil {
             logger.warning("trying to reconnect to MQTT broker, result: \(result) \(client.isActive())")
             try? await Task.sleep(for: .seconds(2))
@@ -125,6 +127,7 @@ struct MQTTService {
         previousSessionRestored = try await client.connect(cleanSession: true)
       }
       logger.info("Connected to MQTT broker (clean session: \(previousSessionRestored))")
+      await metricsManager.setMQTTConnected(true)
     } catch {
       logger.error("Failed to connect to MQTT broker: \(error)")
 
@@ -134,6 +137,7 @@ struct MQTTService {
 
   func disconnect() async {
     logger.info("Disconnecting from MQTT broker")
+    await metricsManager.setMQTTConnected(false)
 
     do {
       if client.isActive() {
@@ -225,6 +229,7 @@ struct MQTTService {
       let registry = DeviceDiscovery.buildDeviceRegistry(devices)
 
       await self.deviceRegistry.replace(registry: registry)
+      await self.metricsManager.syncDeviceInfo(Array(registry.values))
 
       try await subscribeToDeviceTopics(Array(registry.keys))
 
