@@ -17,8 +17,12 @@ struct DeviceDiscovery {
   }
 
   static func buildDeviceRegistry(_ devices: [Device]) -> [String: DeviceInfo] {
+    // `uniqueKeysWithValues` traps on a duplicate key. Zigbee2MQTT does not guarantee
+    // friendly_name uniqueness in every state - a hand-edited configuration.yaml or a
+    // rename in flight can briefly produce two - and trapping here would crash-loop the
+    // exporter over a recoverable condition. Keep the first and say so.
     return Dictionary(
-      uniqueKeysWithValues: devices.compactMap { device in
+      devices.compactMap { device in
         guard let definition = device.definition else {
           logger.warning("Device \(device.friendlyName) has no definition, skipping")
           return nil
@@ -36,6 +40,10 @@ struct DeviceDiscovery {
           device.friendlyName,
           DeviceInfo(device: device, exposes: flattenedExposes)
         )
+      },
+      uniquingKeysWith: { first, _ in
+        logger.warning("Duplicate friendly_name in bridge/devices, keeping the first entry")
+        return first
       }
     )
   }
