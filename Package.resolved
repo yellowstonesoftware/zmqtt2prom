@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hummingbird-project/hummingbird.git",
       "state" : {
-        "revision" : "a2ed0a0294de56e18ba55344eafc801a7a385a90",
-        "version" : "2.22.0"
+        "revision" : "bb1f427eca980a1280a83aee0079cd4371455de6",
+        "version" : "2.27.0"
       }
     },
     {
@@ -78,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-certificates.git",
       "state" : {
-        "revision" : "870f4d5fe5fcfedc13f25d70e103150511746404",
-        "version" : "1.11.0"
+        "revision" : "ff86b924ead66f853b8baf91f3c41926a8f36177",
+        "version" : "1.21.0"
       }
     },
     {
@@ -168,8 +168,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio-extras.git",
       "state" : {
-        "revision" : "a55c3dd3a81d035af8a20ce5718889c0dcab073d",
-        "version" : "1.29.0"
+        "revision" : "41449336c8ecfadac6b4b5be75f9c3c306e61ced",
+        "version" : "1.35.1"
       }
     },
     {
@@ -177,8 +177,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio-http2.git",
       "state" : {
-        "revision" : "5e9e99ec96c53bc2c18ddd10c1e25a3cd97c55e5",
-        "version" : "1.38.0"
+        "revision" : "0f3e54e29c944c2e835ad52159da7d9e1c94ac69",
+        "version" : "1.46.0"
       }
     },
     {
